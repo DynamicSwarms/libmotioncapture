@@ -1,4 +1,6 @@
 #include "libmotioncapture/vicon.h"
+#include <iostream>
+#include <stdio.h>  // for fprintf, stderr, NULL, etc
 
 // VICON
 #include "ViconDataStreamSDK_CPP/DataStreamClient.h"
@@ -17,9 +19,11 @@ namespace libmotioncapture {
   MotionCaptureVicon::MotionCaptureVicon(
     const std::string& hostname,
     bool enableObjects,
-    bool enablePointcloud)
+    bool enablePointcloud,
+    bool addLabeledMarkersToPointcloud)
   {
     pImpl = new MotionCaptureViconImpl;
+    this->addLabeledMarkersToPointcloud = addLabeledMarkersToPointcloud;
 
     // Try connecting...
     while (!pImpl->client.IsConnected().Connected) {
@@ -31,8 +35,11 @@ namespace libmotioncapture {
     }
     if (enablePointcloud) {
       pImpl->client.EnableUnlabeledMarkerData();
-    }
 
+      if(addLabeledMarkersToPointcloud) {
+        pImpl->client.EnableMarkerData();
+      }
+    }
     // This is the lowest latency option
     pImpl->client.SetStreamMode(ViconDataStreamSDK::CPP::StreamMode::ServerPush);
 
@@ -125,7 +132,15 @@ namespace libmotioncapture {
   const PointCloud& MotionCaptureVicon::pointCloud() const
   {
     size_t count = pImpl->client.GetUnlabeledMarkerCount().MarkerCount;
-    pointcloud_.resize(count, Eigen::NoChange);
+    size_t count_labeled = pImpl->client.GetLabeledMarkerCount().MarkerCount;
+
+    if(this->addLabeledMarkersToPointcloud) { 
+      pointcloud_.resize(count + count_labeled, Eigen::NoChange);
+    } else {
+      pointcloud_.resize(count, Eigen::NoChange);
+    }
+
+
     for(size_t i = 0; i < count; ++i) {
       Output_GetUnlabeledMarkerGlobalTranslation translation =
         pImpl->client.GetUnlabeledMarkerGlobalTranslation(i);
@@ -133,6 +148,18 @@ namespace libmotioncapture {
         translation.Translation[0] / 1000.0,
         translation.Translation[1] / 1000.0,
         translation.Translation[2] / 1000.0;
+    }
+
+    // most likely a little bit ugly
+    if(this->addLabeledMarkersToPointcloud) {
+      for(size_t i = 0; i < count_labeled; ++i) {
+        Output_GetLabeledMarkerGlobalTranslation translation =
+          pImpl->client.GetLabeledMarkerGlobalTranslation(i);
+        pointcloud_.row(i + count) << 
+          translation.Translation[0] / 1000.0,
+          translation.Translation[1] / 1000.0,
+          translation.Translation[2] / 1000.0;
+      }
     }
     return pointcloud_;
   }

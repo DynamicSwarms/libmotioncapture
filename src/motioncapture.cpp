@@ -162,7 +162,8 @@ namespace libmotioncapture {
       mocap = new libmotioncapture::MotionCaptureVicon(
         getString(cfg, "hostname", "localhost"),
         getBool(cfg, "enable_objects", true),
-        getBool(cfg, "enable_pointclout", true));
+        getBool(cfg, "enable_pointclout", true),
+        getBool(cfg, "add_labeled_markers_to_pointcloud", false));
     }
 #endif
 #ifdef ENABLE_OPTITRACK
