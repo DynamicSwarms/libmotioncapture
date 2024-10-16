@@ -17,7 +17,9 @@ namespace libmotioncapture {
   MotionCaptureVicon::MotionCaptureVicon(
     const std::string& hostname,
     bool enableObjects,
-    bool enablePointcloud)
+    bool enablePointcloud,
+    bool addLabeledMarkersToPointcloud)
+    : addLabeledMarkersToPointcloud(addLabeledMarkersToPointcloud)
   {
     pImpl = new MotionCaptureViconImpl;
 
@@ -31,8 +33,11 @@ namespace libmotioncapture {
     }
     if (enablePointcloud) {
       pImpl->client.EnableUnlabeledMarkerData();
-    }
 
+      if(addLabeledMarkersToPointcloud) {
+        pImpl->client.EnableMarkerData();
+      }
+    }
     // This is the lowest latency option
     pImpl->client.SetStreamMode(ViconDataStreamSDK::CPP::StreamMode::ServerPush);
 
@@ -124,12 +129,22 @@ namespace libmotioncapture {
 
   const PointCloud& MotionCaptureVicon::pointCloud() const
   {
-    size_t count = pImpl->client.GetUnlabeledMarkerCount().MarkerCount;
-    pointcloud_.resize(count, Eigen::NoChange);
-    for(size_t i = 0; i < count; ++i) {
-      Output_GetUnlabeledMarkerGlobalTranslation translation =
-        pImpl->client.GetUnlabeledMarkerGlobalTranslation(i);
-      pointcloud_.row(i) << 
+    const size_t count = pImpl->client.GetUnlabeledMarkerCount().MarkerCount;
+    const size_t labeledCount = addLabeledMarkersToPointcloud
+      ? pImpl->client.GetLabeledMarkerCount().MarkerCount : 0;
+    pointcloud_.resize(count + labeledCount, Eigen::NoChange);
+
+    for (size_t i = 0; i < count; ++i) {
+      const auto translation = pImpl->client.GetUnlabeledMarkerGlobalTranslation(i);
+      pointcloud_.row(i) <<
+        translation.Translation[0] / 1000.0,
+        translation.Translation[1] / 1000.0,
+        translation.Translation[2] / 1000.0;
+    }
+
+    for (size_t i = 0; i < labeledCount; ++i) {
+      const auto translation = pImpl->client.GetLabeledMarkerGlobalTranslation(i);
+      pointcloud_.row(count + i) <<
         translation.Translation[0] / 1000.0,
         translation.Translation[1] / 1000.0,
         translation.Translation[2] / 1000.0;

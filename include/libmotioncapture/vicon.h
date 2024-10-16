@@ -25,7 +25,8 @@ namespace libmotioncapture {
     MotionCaptureVicon(
       const std::string& hostname,
       bool enableObjects,
-      bool enablePointcloud);
+      bool enablePointcloud,
+      bool addLabeledMarkersToPointcloud = false);
 
     virtual ~MotionCaptureVicon();
 
@@ -55,6 +56,7 @@ namespace libmotioncapture {
 
   private:
     MotionCaptureViconImpl* pImpl;
+    bool addLabeledMarkersToPointcloud = false;
   };
 
 } // namespace libobjecttracker
