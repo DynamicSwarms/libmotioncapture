@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(libmotioncapture)
 
 # define some options
@@ -18,7 +18,21 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Boost 1.5 COMPONENTS system REQUIRED) # for optitrack
+set(Boost_NO_BOOST_CMAKE ON)
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
+
+find_package(Threads REQUIRED)
+find_package(Boost 1.5 OPTIONAL_COMPONENTS system) # for optitrack
+add_definitions(
+  -DBOOST_DATE_TIME_NO_LIB
+  -DBOOST_REGEX_NO_LIB
+  -D_BUILD_STATIC_LIB
+)
+
+message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
 add_definitions(
   -DBOOST_DATE_TIME_NO_LIB
   -DBOOST_REGEX_NO_LIB
