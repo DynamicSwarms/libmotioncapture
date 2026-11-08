@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 project(libmotioncapture)
 
 # define some options
@@ -19,7 +19,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Threads REQUIRED)
-find_package(Boost) # for optitrack
+find_package(Boost CONFIG REQUIRED) # for optitrack
 add_definitions(
   -DBOOST_DATE_TIME_NO_LIB
   -DBOOST_REGEX_NO_LIB
@@ -60,6 +60,8 @@ if (LIBMOTIONCAPTURE_ENABLE_VICON)
   message("including vicon")
 
   add_definitions(-DENABLE_VICON)
+  # The SDK uses find_package(Boost) without an explicit CONFIG mode.
+  set(CMAKE_POLICY_DEFAULT_CMP0167 NEW)
   add_subdirectory(deps/vicon-datastream-sdk EXCLUDE_FROM_ALL)
   set(my_include_directories
     ${my_include_directories}
@@ -91,12 +93,6 @@ if (LIBMOTIONCAPTURE_ENABLE_OPTITRACK)
     Boost::boost
     Threads::Threads
   )
-  if (Boost_FOUND)
-    set(my_libraries
-      ${my_libraries}
-      Boost::boost
-    )
-  endif()
 endif()
 
 if (LIBMOTIONCAPTURE_ENABLE_OPTITRACK_CLOSED_SOURCE)
