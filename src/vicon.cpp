@@ -38,6 +38,7 @@ namespace libmotioncapture {
 
       if(addLabeledMarkersToPointcloud) {
         pImpl->client.EnableMarkerData();
+        pImpl->client.EnableMarkerRayData();
       }
     }
     // This is the lowest latency option
@@ -150,16 +151,27 @@ namespace libmotioncapture {
         translation.Translation[2] / 1000.0;
     }
 
-    // most likely a little bit ugly
+    size_t accepted = count;
     if(this->addLabeledMarkersToPointcloud) {
-      for(size_t i = 0; i < count_labeled; ++i) {
-        Output_GetLabeledMarkerGlobalTranslation translation =
-          pImpl->client.GetLabeledMarkerGlobalTranslation(i);
-        pointcloud_.row(i + count) << 
-          translation.Translation[0] / 1000.0,
-          translation.Translation[1] / 1000.0,
-          translation.Translation[2] / 1000.0;
+      auto& client = pImpl->client;
+      const auto subjects = client.GetSubjectCount();
+      // Ray support is available only through subject/marker names.
+      for(size_t i = 0; subjects.Result == Result::Success && i < subjects.SubjectCount; ++i) {
+        const auto subject = client.GetSubjectName(i).SubjectName;
+        const auto markers = client.GetMarkerCount(subject);
+        for(size_t j = 0; markers.Result == Result::Success && j < markers.MarkerCount; ++j) {
+          const auto marker = client.GetMarkerName(subject, j).MarkerName;
+          const auto translation = client.GetMarkerGlobalTranslation(subject, marker);
+          const auto rays = client.GetMarkerRayContributionCount(subject, marker);
+          if(translation.Result != Result::Success || translation.Occluded ||
+             rays.Result != Result::Success || rays.RayContributionsCount < 3) continue;
+          pointcloud_.row(accepted++) <<
+            translation.Translation[0] / 1000.0,
+            translation.Translation[1] / 1000.0,
+            translation.Translation[2] / 1000.0;
+        }
       }
+      pointcloud_.conservativeResize(accepted, Eigen::NoChange);
     }
     return pointcloud_;
   }
