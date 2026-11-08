@@ -1,4 +1,5 @@
 #include "libmotioncapture/vicon.h"
+#include <vector>
 
 // VICON
 #include "ViconDataStreamSDK_CPP/DataStreamClient.h"
@@ -36,6 +37,7 @@ namespace libmotioncapture {
 
       if(addLabeledMarkersToPointcloud) {
         pImpl->client.EnableMarkerData();
+        pImpl->client.EnableMarkerRayData();
       }
     }
     // This is the lowest latency option
@@ -129,25 +131,56 @@ namespace libmotioncapture {
 
   const PointCloud& MotionCaptureVicon::pointCloud() const
   {
-    const size_t count = pImpl->client.GetUnlabeledMarkerCount().MarkerCount;
-    const size_t labeledCount = addLabeledMarkersToPointcloud
-      ? pImpl->client.GetLabeledMarkerCount().MarkerCount : 0;
-    pointcloud_.resize(count + labeledCount, Eigen::NoChange);
+    auto& client = pImpl->client;
+    const auto unlabeled = client.GetUnlabeledMarkerCount();
+    std::vector<Eigen::Vector3f> points;
+    points.reserve(unlabeled.MarkerCount);
 
-    for (size_t i = 0; i < count; ++i) {
-      const auto translation = pImpl->client.GetUnlabeledMarkerGlobalTranslation(i);
-      pointcloud_.row(i) <<
+    for (size_t i = 0; i < unlabeled.MarkerCount; ++i) {
+      const auto translation = client.GetUnlabeledMarkerGlobalTranslation(i);
+      points.emplace_back(
         translation.Translation[0] / 1000.0,
         translation.Translation[1] / 1000.0,
-        translation.Translation[2] / 1000.0;
+        translation.Translation[2] / 1000.0);
     }
 
-    for (size_t i = 0; i < labeledCount; ++i) {
-      const auto translation = pImpl->client.GetLabeledMarkerGlobalTranslation(i);
-      pointcloud_.row(count + i) <<
-        translation.Translation[0] / 1000.0,
-        translation.Translation[1] / 1000.0,
-        translation.Translation[2] / 1000.0;
+    if (addLabeledMarkersToPointcloud) {
+      // Camera-ray information is available through subject and marker names.
+      constexpr unsigned int minimumRayContributions = 3;
+      const auto subjects = client.GetSubjectCount();
+      if (subjects.Result == Result::Success) {
+        for (size_t i = 0; i < subjects.SubjectCount; ++i) {
+          const auto subject = client.GetSubjectName(i);
+          if (subject.Result != Result::Success) continue;
+
+          const auto markers = client.GetMarkerCount(subject.SubjectName);
+          if (markers.Result != Result::Success) continue;
+
+          for (size_t j = 0; j < markers.MarkerCount; ++j) {
+            const auto marker = client.GetMarkerName(subject.SubjectName, j);
+            if (marker.Result != Result::Success) continue;
+
+            const auto translation = client.GetMarkerGlobalTranslation(
+              subject.SubjectName, marker.MarkerName);
+            if (translation.Result != Result::Success || translation.Occluded) continue;
+
+            const auto rays = client.GetMarkerRayContributionCount(
+              subject.SubjectName, marker.MarkerName);
+            if (rays.Result != Result::Success ||
+                rays.RayContributionsCount < minimumRayContributions) continue;
+
+            points.emplace_back(
+              translation.Translation[0] / 1000.0,
+              translation.Translation[1] / 1000.0,
+              translation.Translation[2] / 1000.0);
+          }
+        }
+      }
+    }
+
+    pointcloud_.resize(points.size(), Eigen::NoChange);
+    for (size_t i = 0; i < points.size(); ++i) {
+      pointcloud_.row(i) = points[i].transpose();
     }
     return pointcloud_;
   }

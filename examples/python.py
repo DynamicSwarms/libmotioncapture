@@ -7,7 +7,7 @@ if __name__ == "__main__":
     parser.add_argument("type")
     parser.add_argument("hostname")
     parser.add_argument("--add-labeled-markers", action="store_true",
-                        help="Include labeled Vicon markers in the point cloud")
+                        help="Include visible Vicon markers supported by at least three camera rays")
     args = parser.parse_args()
 
     mc = motioncapture.connect(args.type, {"hostname": args.hostname,
